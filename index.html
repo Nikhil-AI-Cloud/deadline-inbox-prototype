@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deadline Inbox</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1 class="brand">📥 Deadline Inbox</h1>
+
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="inbox">Inbox <span class="count" id="count-inbox"></span></button>
+        <button class="nav-item" data-view="calendar">Calendar <span class="count" id="count-calendar"></span></button>
+        <button class="nav-item" data-view="backlog">Backlog <span class="count" id="count-backlog"></span></button>
+      </nav>
+
+      <div class="section-label">Sources</div>
+      <div class="filters" id="filters"></div>
+    </aside>
+
+    <main class="main">
+      <header class="page-header">
+        <h2 id="view-title">Inbox</h2>
+        <p id="view-subtitle" class="muted"></p>
+      </header>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <dialog id="add-info-dialog">
+    <form id="add-info-form" method="dialog">
+      <h3>Add info</h3>
+      <p class="muted" id="form-item-title"></p>
+      <label>Due date <input type="date" name="dueDate" /></label>
+      <label>Due time <input type="time" name="dueTime" /></label>
+      <p class="muted small">Leave a field blank if you don't know it. We won't guess.</p>
+      <p class="form-error" id="form-error"></p>
+      <div class="actions">
+        <button type="submit" class="btn primary">Save</button>
+        <button type="button" class="btn ghost" id="form-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="event-dialog">
+    <div id="event-detail"></div>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

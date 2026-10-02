@@ -12,7 +12,8 @@
 //   from            where/who it came from (shown with the evidence)
 //   subject         optional, Gmail only
 //   sourceEvidence  the exact deadline phrase (shown in the event popup)
-//   sourceMessage   optional fuller original message (shown by "View Original Source")
+//   sourceMessage   the full original message (shown in the simulated "View Original Source" view)
+//   deadlinePhrase  the part of sourceMessage that is highlighted as the deadline; must be an exact substring
 //   dueDate         "YYYY-MM-DD" or null     dueTime  e.g. "11:59 PM" or null
 //
 // Google Doc links live per TASK (see DOCUMENT_URLS below), so a merged event has one link.
@@ -51,6 +52,7 @@ const ITEMS = [
     received: "2026-09-21",
     sourceEvidence: "PM Homework 5 is due September 25 at 11:59 PM PST.",
     sourceMessage: "PM Homework 5. Due: Sep 25 at 11:59 PM PST. Submit a single PDF through Canvas.",
+    deadlinePhrase: "Due: Sep 25 at 11:59 PM PST",
     dueDate: "2026-09-25",
     dueTime: "11:59 PM PST",
     dismissed: false,
@@ -65,6 +67,7 @@ const ITEMS = [
     received: "2026-09-28",
     sourceEvidence: "Week 6 Video Lecture / Course Weeks 1–6 Reflections. Due: Oct 2 at 11:59 PM.",
     sourceMessage: "Week 6 Video Lecture / Course Weeks 1–6 Reflections. Due: Oct 2 at 11:59 PM. Watch the lecture, then submit your reflections.",
+    deadlinePhrase: "Due: Oct 2 at 11:59 PM",
     dueDate: "2026-10-02",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -79,6 +82,7 @@ const ITEMS = [
     received: "2026-09-28",
     sourceEvidence: "Extra Credit Assignment: Build Your Own AI Workflow — Due Oct 4 at 11:59 PM",
     sourceMessage: "Extra Credit Assignment: Build Your Own AI Workflow. Due: Oct 4 at 11:59 PM. Optional; counts toward your assignment grade.",
+    deadlinePhrase: "Due: Oct 4 at 11:59 PM",
     dueDate: "2026-10-04",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -93,6 +97,7 @@ const ITEMS = [
     received: "2026-09-28",
     sourceEvidence: "Final Group Project: Build a Product Plan — Due Oct 7 at 11:59 PM",
     sourceMessage: "Final Group Project: Build a Product Plan. Due: Oct 7 at 11:59 PM. One submission per group.",
+    deadlinePhrase: "Due: Oct 7 at 11:59 PM",
     dueDate: "2026-10-07",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -107,6 +112,7 @@ const ITEMS = [
     received: "2026-09-28",
     sourceEvidence: "Final Group Presentation. Due: Oct 7 at 11:59 PM.",
     sourceMessage: "Final Group Presentation. Due: Oct 7 at 11:59 PM. Upload your slides before presenting.",
+    deadlinePhrase: "Due: Oct 7 at 11:59 PM",
     dueDate: "2026-10-07",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -121,6 +127,7 @@ const ITEMS = [
     received: "2026-09-28",
     sourceEvidence: "Individual Assignment: Peer Evaluation 2. Due: Oct 8 at 11:59 PM.",
     sourceMessage: "Individual Assignment: Peer Evaluation 2. Due: Oct 8 at 11:59 PM. Evaluate each teammate privately.",
+    deadlinePhrase: "Due: Oct 8 at 11:59 PM",
     dueDate: "2026-10-08",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -135,6 +142,7 @@ const ITEMS = [
     received: "2026-09-29",
     sourceEvidence: "Team Assignment 5: Mapping the Evolution of a Problem. Due: Oct 6 at 11:59 PM.",
     sourceMessage: "Team Assignment 5: Mapping the Evolution of a Problem. Due: Oct 6 at 11:59 PM. One submission per team.",
+    deadlinePhrase: "Due: Oct 6 at 11:59 PM",
     dueDate: "2026-10-06",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -149,6 +157,7 @@ const ITEMS = [
     received: "2026-09-30",
     sourceEvidence: "Case Reflection. Due: Oct 9.",
     sourceMessage: "Case Reflection. Due: Oct 9. Write a one-page reflection on this week's case.",
+    deadlinePhrase: "Due: Oct 9",
     dueDate: "2026-10-09",
     dueTime: null, // no time on the page -> Partial
     dismissed: false,
@@ -166,6 +175,7 @@ const ITEMS = [
     received: "2026-10-01",
     sourceEvidence: "Reminder that the Extra Credit Assignment: Build Your Own AI Workflow is due October 4 at 11:59 PM.",
     sourceMessage: "Hi everyone, reminder that the Extra Credit Assignment: Build Your Own AI Workflow is due October 4 at 11:59 PM. It is optional. Thanks, Product Management Course Team",
+    deadlinePhrase: "due October 4 at 11:59 PM",
     dueDate: "2026-10-04",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -181,6 +191,7 @@ const ITEMS = [
     received: "2026-10-01",
     sourceEvidence: "Please remember that the Final Group Project: Build a Product Plan is due October 7 at 11:59 PM.",
     sourceMessage: "Hello, please remember that the Final Group Project: Build a Product Plan is due October 7 at 11:59 PM. Reach out to course staff with any questions. Thanks, Course Staff",
+    deadlinePhrase: "due October 7 at 11:59 PM",
     dueDate: "2026-10-07",
     dueTime: "11:59 PM",
     dismissed: false,
@@ -196,6 +207,7 @@ const ITEMS = [
     received: "2026-10-01",
     sourceEvidence: "Please submit the final project soon. Details are available on Canvas.",
     sourceMessage: "Hi everyone, please submit the final project soon. Details are available on Canvas. Thanks, Product Management Course Team",
+    deadlinePhrase: "soon",
     dueDate: null, // "soon" is not a date -> Backlog
     dueTime: null,
     dismissed: false,
@@ -211,6 +223,7 @@ const ITEMS = [
     received: "2026-09-30",
     sourceEvidence: "Don't forget to send in your team retrospective soon.",
     sourceMessage: "Hello, don't forget to send in your team retrospective soon. Thanks, Course Staff",
+    deadlinePhrase: "soon",
     dueDate: null,
     dueTime: null,
     dismissed: false,
@@ -227,6 +240,7 @@ const ITEMS = [
     received: "2026-09-30",
     sourceEvidence: "Please finish your section of the Product Plan by October 5 at 6:00 PM so we can review everything before submission.",
     sourceMessage: "Please finish your section of the Product Plan by October 5 at 6:00 PM so we can review everything before submission.",
+    deadlinePhrase: "by October 5 at 6:00 PM",
     dueDate: "2026-10-05",
     dueTime: "6:00 PM",
     dismissed: false,
@@ -241,6 +255,7 @@ const ITEMS = [
     received: "2026-09-30",
     sourceEvidence: "Please upload the final workflow screenshots by October 3 at 8:00 PM.",
     sourceMessage: "Please upload the final workflow screenshots by October 3 at 8:00 PM.",
+    deadlinePhrase: "by October 3 at 8:00 PM",
     dueDate: "2026-10-03",
     dueTime: "8:00 PM",
     dismissed: false,
@@ -255,6 +270,7 @@ const ITEMS = [
     received: "2026-09-30",
     sourceEvidence: "Team charter draft is due next Tuesday, please add your sections.",
     sourceMessage: "Team charter draft is due next Tuesday, please add your sections.",
+    deadlinePhrase: "due next Tuesday",
     dueDate: "2026-10-06", // "next Tuesday" resolved from the Wed Sep 30 message date
     dueTime: null, // no time given -> Partial
     dismissed: false,
@@ -269,6 +285,7 @@ const ITEMS = [
     received: "2026-10-01",
     sourceEvidence: "We should wrap up the peer feedback soon.",
     sourceMessage: "We should wrap up the peer feedback soon.",
+    deadlinePhrase: "soon",
     dueDate: null,
     dueTime: null,
     dismissed: false,
@@ -285,6 +302,7 @@ const ITEMS = [
     received: "2026-10-01",
     sourceEvidence: "Reminder: submit the study-group notes by October 6 at 7:00 PM.",
     sourceMessage: "Reminder: submit the study-group notes by October 6 at 7:00 PM.",
+    deadlinePhrase: "by October 6 at 7:00 PM",
     dueDate: "2026-10-06",
     dueTime: "7:00 PM",
     dismissed: false,

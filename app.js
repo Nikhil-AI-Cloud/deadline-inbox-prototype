@@ -124,7 +124,7 @@ function renderCard(item) {
     ? `Due ${formatDate(item.dueDate)}${item.dueTime ? " · " + item.dueTime : ""}`
     : "No verified due date";
   return `
-    <article class="card">
+    <article class="card clickable" data-action="open-item" data-id="${item.id}" tabindex="0" role="button">
       <div class="card-top">
         <h3>${item.title}</h3>
         <div class="tags">${sourceTag(item.source)}${statusTag(item)}</div>
@@ -265,7 +265,7 @@ form.addEventListener("submit", (e) => {
 
 document.getElementById("form-cancel").addEventListener("click", () => dialog.close());
 
-// ---------- Event detail popup (Calendar) ----------
+// ---------- Event detail popup (Calendar and Inbox) ----------
 
 const eventDialog = document.getElementById("event-dialog");
 
@@ -277,13 +277,25 @@ function formatLongDate(iso) {
   return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-// `event` comes from getEvents(): one deadline, possibly backed by several sources.
+// `event` is one deadline, possibly backed by several sources (from getEvents()), or a single
+// Backlog item with no date (opened from the Inbox). Same card either way.
 function renderEventDetail(event) {
-  const partial = getStatus(event) === "partial";
-  const time = event.dueTime || "Time not provided";
+  const status = getStatus(event); // "complete" | "partial" | "backlog"
   const multi = event.items.length > 1;
   const documentUrl = DOCUMENT_URLS[event.taskKey];
 
+  const when =
+    status === "backlog"
+      ? "No verified due date"
+      : `${formatLongDate(event.dueDate)} · ${event.dueTime || "Time not provided"}`;
+
+  const statusTagHtml = {
+    complete: `<span class="tag ok">Verified</span>`,
+    partial: `<span class="tag partial">Partial</span>`,
+    backlog: `<span class="tag backlog">Backlog: no calendar event</span>`,
+  }[status];
+
+  // "Open Task Document" = where the student works. Separate from "View Original Source" below.
   const docAction = isHttpsUrl(documentUrl)
     ? `<a class="btn primary" href="${escapeAttr(documentUrl)}" target="_blank" rel="noopener noreferrer">Open Task Document ↗</a>`
     : `<span class="btn unavailable" aria-disabled="true" title="Add a real Google Doc URL for this task in DOCUMENT_URLS in data.js">Task document not linked yet</span>`;
@@ -295,33 +307,30 @@ function renderEventDetail(event) {
     )
     .join("");
 
-  const sourcePanel = event.items
-    .map(
-      (i) => `<div class="source-entry">
-        <div class="evidence-meta">${i.source} · ${i.from}${i.subject ? ` · Subject: ${i.subject}` : ""} · received ${formatDate(i.received)}</div>
-        ${i.sourceMessage || i.sourceEvidence}
-      </div>`
-    )
+  // "View Original Source" = where Deadline Inbox found the deadline (simulated, no external links).
+  const tabs = multi
+    ? `<div class="src-tabs">${event.items
+        .map((i, n) => `<button class="src-tab${n === 0 ? " active" : ""}" data-action="source-tab" data-index="${n}">${i.source} source</button>`)
+        .join("")}</div>`
+    : "";
+  const records = event.items
+    .map((i, n) => `<div class="src-record" data-index="${n}"${n === 0 ? "" : " hidden"}>${renderSourceRecord(i)}</div>`)
     .join("");
 
   return `
-    <div class="ev-head ${partial ? "partial" : "complete"}">
+    <div class="ev-head ${status}">
       <h3>${event.title}</h3>
       <button class="ev-close" data-close aria-label="Close">✕</button>
     </div>
     <div class="ev-body">
       <div class="muted">${event.course}</div>
-      <div class="ev-when">${formatLongDate(event.dueDate)} · ${time}</div>
+      <div class="ev-when">${when}</div>
 
       <dl class="ev-meta">
         <dt>${multi ? "Sources" : "Source"}</dt><dd>${event.items.map((i) => sourceTag(i.source)).join(" + ")}</dd>
-        <dt>Status</dt><dd>${
-          partial
-            ? `<span class="tag partial">Partial</span>`
-            : `<span class="tag ok">Verified</span>`
-        }</dd>
+        <dt>Status</dt><dd>${statusTagHtml}</dd>
       </dl>
-      ${partial ? missingBlock(event) : ""}
+      ${status === "complete" ? "" : missingBlock(event)}
 
       <div class="ev-label">Source evidence</div>
       ${evidence}
@@ -331,14 +340,75 @@ function renderEventDetail(event) {
         <button class="btn" data-action="toggle-source" aria-expanded="false">View Original Source</button>
       </div>
 
-      <div class="source-panel" id="source-panel" hidden>${sourcePanel}</div>
+      <div class="source-panel" id="source-panel" hidden>
+        ${tabs}
+        ${records}
+        <div class="src-note">Simulated view for this prototype. It is not a live link to ${multi ? "these platforms" : event.items[0].source}.</div>
+      </div>
     </div>`;
 }
 
-function openEventDetail(id) {
-  const event = getEvents().find((e) => e.id === id);
+// ----- Simulated original-source views (one look per platform) -----
+
+const highlight = (text, phrase) =>
+  text.includes(phrase) ? text.replace(phrase, `<mark>${phrase}</mark>`) : text;
+
+// Uses the item's existing fields. Slack `from` is "#channel · Sender"; Discord is "Server · #channel".
+function renderSourceRecord(item) {
+  const body = highlight(item.sourceMessage, item.deadlinePhrase);
+  const received = formatDate(item.received);
+  const [partA, partB] = item.from.split(" · ");
+  let meta, content;
+
+  if (item.source === "Canvas") {
+    meta = `Course: ${item.course} › Assignments`;
+    content = `<h4>${item.title}</h4><p>${body}</p>`;
+  } else if (item.source === "Gmail") {
+    meta = `From: ${item.from} · ${received}`;
+    content = `<h4>${item.subject}</h4><p>${body}</p>`;
+  } else if (item.source === "Slack") {
+    meta = `${partA} · ${received}`;
+    content = `<div class="msg-author">${partB}</div><p>${body}</p>`;
+  } else {
+    // Discord
+    meta = `${partA} › ${partB} · ${received}`;
+    content = `<div class="msg-author">Study group member</div><p>${body}</p>`;
+  }
+
+  return `
+    <div class="src-card ${item.source.toLowerCase()}">
+      <div class="src-head">${SOURCE_ICONS[item.source]} ${item.source}</div>
+      <div class="src-body">
+        <div class="src-meta">${meta}</div>
+        ${content}
+      </div>
+    </div>`;
+}
+
+function showEvent(event) {
   document.getElementById("event-detail").innerHTML = renderEventDetail(event);
   eventDialog.showModal();
+}
+
+// From the Calendar: `id` is the merged event's id.
+function openEventDetail(id) {
+  showEvent(getEvents().find((e) => e.id === id));
+}
+
+// From the Inbox: show the (merged) calendar event this item belongs to; a Backlog item has no
+// event, so show it on its own with no date.
+function openItemDetail(id) {
+  const item = ITEMS.find((i) => i.id === id);
+  const event = getEvents().find((e) => e.items.includes(item)) || {
+    id: item.id,
+    taskKey: item.taskKey,
+    title: item.title,
+    course: item.course,
+    dueDate: item.dueDate,
+    dueTime: item.dueTime,
+    items: [item],
+  };
+  showEvent(event);
 }
 
 eventDialog.addEventListener("click", (e) => {
@@ -353,6 +423,12 @@ eventDialog.addEventListener("click", (e) => {
     panel.hidden = !panel.hidden;
     toggle.textContent = panel.hidden ? "View Original Source" : "Hide Original Source";
     toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    return;
+  }
+  const tab = e.target.closest('[data-action="source-tab"]');
+  if (tab) {
+    eventDialog.querySelectorAll(".src-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    eventDialog.querySelectorAll(".src-record").forEach((r) => (r.hidden = r.dataset.index !== tab.dataset.index));
   }
 });
 
@@ -378,9 +454,18 @@ document.getElementById("view").addEventListener("click", (e) => {
   const id = Number(btn.dataset.id);
   if (btn.dataset.action === "add-info") openAddInfo(id);
   if (btn.dataset.action === "open-event") openEventDetail(id);
+  if (btn.dataset.action === "open-item") openItemDetail(id);
   if (btn.dataset.action === "dismiss") {
     ITEMS.find((i) => i.id === id).dismissed = true;
     render();
+  }
+});
+
+// Inbox cards are focusable: Enter / Space opens them like a click.
+document.getElementById("view").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-action="open-item"]')) {
+    e.preventDefault();
+    openItemDetail(Number(e.target.dataset.id));
   }
 });
 

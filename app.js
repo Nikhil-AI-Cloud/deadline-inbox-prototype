@@ -340,7 +340,7 @@ function renderEventDetail(event) {
       <div class="actions">
         ${docAction}
         <button class="btn" data-action="toggle-source" aria-expanded="false">View Original Source</button>
-        ${status !== "backlog" && WORKSPACE_ELIGIBLE.includes(event.taskKey) ? `<button class="btn" data-action="add-workspace">${state.workspaces.has(event.taskKey) ? "Open Workspace" : "+ Add Workspace"}</button>` : ""}
+        ${status !== "backlog" && WORKSPACE_ELIGIBLE.includes(event.taskKey) ? `<button class="btn" data-action="add-workspace">${state.workspaces.has(event.taskKey) ? "Open Workspace" : "+ Add Workspace"}</button>${state.workspaces.has(event.taskKey) ? RECREATE_BUTTON : ""}` : ""}
       </div>
 
       <div class="source-panel" id="source-panel" hidden>
@@ -433,6 +433,10 @@ eventDialog.addEventListener("click", (e) => {
     openWorkspace(state.currentEvent);
     return;
   }
+  if (e.target.closest('[data-action="recreate-workspace"]')) {
+    openWorkspace(state.currentEvent, true); // chooser again; picking an option replaces the workspace
+    return;
+  }
   const tab = e.target.closest('[data-action="source-tab"]');
   if (tab) {
     eventDialog.querySelectorAll(".src-tab").forEach((t) => t.classList.toggle("active", t === tab));
@@ -445,13 +449,14 @@ eventDialog.addEventListener("click", (e) => {
 //   Default   -> a blank Notion-style page the student builds by hand (the no-AI baseline).
 //   Notion AI -> a workspace with child pages generated from the project context (see WORKSPACE_AI).
 
+const RECREATE_BUTTON = `<button class="btn" data-action="recreate-workspace">Recreate Workspace</button>`;
 const workspaceDialog = document.getElementById("workspace-dialog");
 const workspaceContent = document.getElementById("workspace-content");
 let workspaceRun = 0; // lets us ignore the fake "AI" delay if the dialog was closed meanwhile
 
-function openWorkspace(event) {
+function openWorkspace(event, recreate) {
   workspaceRun++;
-  const type = state.workspaces.get(event.taskKey);
+  const type = recreate ? null : state.workspaces.get(event.taskKey);
   workspaceContent.innerHTML = type ? renderWorkspace(event, type) : renderWorkspaceChooser(event);
   workspaceDialog.showModal();
 }
@@ -488,6 +493,7 @@ function createWorkspace(type) {
     // The event popup underneath now offers "Open Workspace" instead of "+ Add Workspace".
     const btn = eventDialog.querySelector('[data-action="add-workspace"]');
     if (btn) btn.textContent = "Open Workspace";
+    if (btn && !eventDialog.querySelector('[data-action="recreate-workspace"]')) btn.insertAdjacentHTML("afterend", RECREATE_BUTTON);
   };
   if (type === "default") return show();
 

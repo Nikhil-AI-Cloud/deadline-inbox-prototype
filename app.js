@@ -7,6 +7,8 @@ const state = {
   view: "inbox",
   activeSources: new Set(SOURCES), // all on by default
   editingId: null,                 // item currently open in the Add info form
+  currentEvent: null,              // event shown in the popup (used by Add Workspace)
+  workspaces: new Map(),           // taskKey -> "default" | "ai" (simulated, resets on reload)
 };
 
 const VIEWS = {
@@ -338,6 +340,7 @@ function renderEventDetail(event) {
       <div class="actions">
         ${docAction}
         <button class="btn" data-action="toggle-source" aria-expanded="false">View Original Source</button>
+        ${status !== "backlog" && WORKSPACE_ELIGIBLE.includes(event.taskKey) ? `<button class="btn" data-action="add-workspace">${state.workspaces.has(event.taskKey) ? "Open Workspace" : "+ Add Workspace"}</button>` : ""}
       </div>
 
       <div class="source-panel" id="source-panel" hidden>
@@ -386,6 +389,7 @@ function renderSourceRecord(item) {
 }
 
 function showEvent(event) {
+  state.currentEvent = event;
   document.getElementById("event-detail").innerHTML = renderEventDetail(event);
   eventDialog.showModal();
 }
@@ -425,11 +429,176 @@ eventDialog.addEventListener("click", (e) => {
     toggle.setAttribute("aria-expanded", String(!panel.hidden));
     return;
   }
+  if (e.target.closest('[data-action="add-workspace"]')) {
+    openWorkspace(state.currentEvent);
+    return;
+  }
   const tab = e.target.closest('[data-action="source-tab"]');
   if (tab) {
     eventDialog.querySelectorAll(".src-tab").forEach((t) => t.classList.toggle("active", t === tab));
     eventDialog.querySelectorAll(".src-record").forEach((r) => (r.hidden = r.dataset.index !== tab.dataset.index));
   }
+});
+
+// ---------- Workspace (simulated: no Notion API, no AI call) ----------
+// Flow: event popup -> "+ Add Workspace" -> choose Default or Notion AI -> workspace page.
+//   Default   -> a blank Notion-style page the student builds by hand (the no-AI baseline).
+//   Notion AI -> a workspace with child pages generated from the project context (see WORKSPACE_AI).
+
+const workspaceDialog = document.getElementById("workspace-dialog");
+const workspaceContent = document.getElementById("workspace-content");
+let workspaceRun = 0; // lets us ignore the fake "AI" delay if the dialog was closed meanwhile
+
+function openWorkspace(event) {
+  workspaceRun++;
+  const type = state.workspaces.get(event.taskKey);
+  workspaceContent.innerHTML = type ? renderWorkspace(event, type) : renderWorkspaceChooser(event);
+  workspaceDialog.showModal();
+}
+
+function renderWorkspaceChooser(event) {
+  return `
+    <div class="ws-modal">
+      <div class="ws-modal-head">
+        <div>
+          <h3>Create Workspace</h3>
+          <p class="muted">Turn this deadline into a workspace for planning and collaboration.</p>
+        </div>
+        <button class="ev-close" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="ws-options">
+        <button class="ws-option" data-action="ws-create" data-type="default">
+          <span class="ws-option-title">Default Workspace</span>
+          <span class="muted">Start with a blank workspace without AI.</span>
+        </button>
+        <button class="ws-option ai" data-action="ws-create" data-type="ai">
+          <span class="ws-option-title">Create with Notion AI ✨</span>
+          <span class="muted">Use the context from this deadline and its sources to generate a customized workspace.</span>
+        </button>
+      </div>
+      <div class="muted small">For: ${event.title}</div>
+    </div>`;
+}
+
+function createWorkspace(type) {
+  const event = state.currentEvent;
+  const show = () => {
+    state.workspaces.set(event.taskKey, type);
+    workspaceContent.innerHTML = renderWorkspace(event, type);
+    // The event popup underneath now offers "Open Workspace" instead of "+ Add Workspace".
+    const btn = eventDialog.querySelector('[data-action="add-workspace"]');
+    if (btn) btn.textContent = "Open Workspace";
+  };
+  if (type === "default") return show();
+
+  // Notion AI path: brief fake "reading the context" step, then the workspace appears directly.
+  const run = ++workspaceRun;
+  const context = (WORKSPACE_AI[event.taskKey] || {}).context;
+  workspaceContent.innerHTML = `
+    <div class="ws-loading">
+      <div class="spinner"></div>
+      <div>✨ Creating workspace from deadline context...</div>
+      ${context ? `<div class="ws-loading-context">“${context}”</div>` : ""}
+    </div>`;
+  setTimeout(() => {
+    if (run === workspaceRun && workspaceDialog.open) show();
+  }, 1200);
+}
+
+// `pageId` (AI workspaces only): which child page to show; omitted = the workspace's home page.
+function renderWorkspace(event, type, pageId) {
+  return type === "ai" ? renderAiWorkspace(event, pageId) : renderBlankPage();
+}
+
+// Default / no AI: an empty Notion-style page. No sections, tasks or evidence are generated.
+function renderBlankPage() {
+  return `
+    <div class="ws-page">
+      <button class="ev-close ws-close" data-close aria-label="Close">✕</button>
+      <h2 class="ws-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></h2>
+      <div class="ws-body" contenteditable="true" spellcheck="false" data-placeholder="Type '/' for commands"></div>
+    </div>`;
+}
+
+function renderAiWorkspace(event, pageId) {
+  const config = WORKSPACE_AI[event.taskKey] || { title: `${event.title} — Workspace`, pages: [] };
+  const page = (config.pages || []).find((p) => p.id === pageId);
+  const badge = `<div class="ws-badge ai">✨ Generated from deadline context</div>`;
+
+  // Child page (e.g. Brainstorming): breadcrumb back to the workspace + its sections.
+  if (page) {
+    return `
+      <div class="ws-page">
+        <button class="ev-close ws-close" data-close aria-label="Close">✕</button>
+        <div class="ws-crumbs"><button class="crumb" data-action="ws-home">🚀 ${config.title}</button> › <span>${page.icon} ${page.title}</span></div>
+        <div class="ws-icon">${page.icon}</div>
+        <h2>${page.title}</h2>
+        ${badge}
+        <p class="muted ws-purpose">${page.purpose}</p>
+        ${page.sections.map(renderSection).join("")}
+      </div>`;
+  }
+
+  // Home page: the context Notion AI "read" and the child pages it created, shown as a page tree.
+  const deadline = `${formatLongDate(event.dueDate)} · ${event.dueTime || "Time not provided"}`;
+  return `
+    <div class="ws-page">
+      <button class="ev-close ws-close" data-close aria-label="Close">✕</button>
+      <div class="ws-icon">🚀</div>
+      <h2>${config.title}</h2>
+      ${badge}
+
+      <dl class="ws-props">
+        <dt>Deadline</dt><dd>${deadline}</dd>
+        <dt>Course</dt><dd>${event.course}</dd>
+        <dt>Sources</dt><dd>${event.items.map((i) => i.source).join(" + ")}</dd>
+      </dl>
+
+      ${config.context ? `<div class="ws-callout"><div class="ws-label">Project context Notion AI used</div>“${config.context}”</div>` : ""}
+
+      <h4>Pages</h4>
+      ${
+        config.pages.length
+          ? `<div class="ws-tree">${config.pages
+              .map(
+                (p) => `
+          <div class="ws-tree-row">
+            <button class="ws-page-link" data-action="ws-open-page" data-page="${p.id}">
+              <span class="ws-page-icon">${p.icon}</span>
+              <span><span class="ws-page-title">${p.title}</span><span class="ws-res-sub">${p.purpose}</span></span>
+            </button>
+          </div>`
+              )
+              .join("")}</div>`
+          : `<p class="placeholder">No child pages are defined for this task in WORKSPACE_AI (data.js).</p>`
+      }
+    </div>`;
+}
+
+function renderSection(sec) {
+  let body = "";
+  if (sec.text) body += `<p class="muted">${sec.text}</p>`;
+  if (sec.bullets) body += `<ul class="ws-bullets">${sec.bullets.map((b) => `<li>${b}</li>`).join("")}</ul>`;
+  if (sec.checklist)
+    body += sec.checklist.map((c) => `<label class="ws-task"><input type="checkbox" /><span>${c}</span></label>`).join("");
+  if (sec.table)
+    body += `<table class="ws-table"><thead><tr>${sec.table.columns.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${sec.table.rows
+      .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+      .join("")}</tbody></table>`;
+  return `<h4>${sec.heading}</h4>${body}`;
+}
+
+workspaceDialog.addEventListener("click", (e) => {
+  if (e.target === workspaceDialog || e.target.closest("[data-close]")) {
+    workspaceDialog.close();
+    return;
+  }
+  const choice = e.target.closest('[data-action="ws-create"]');
+  if (choice) return createWorkspace(choice.dataset.type);
+
+  const open = e.target.closest('[data-action="ws-open-page"]');
+  if (open) workspaceContent.innerHTML = renderWorkspace(state.currentEvent, "ai", open.dataset.page);
+  if (e.target.closest('[data-action="ws-home"]')) workspaceContent.innerHTML = renderWorkspace(state.currentEvent, "ai");
 });
 
 // ---------- events ----------

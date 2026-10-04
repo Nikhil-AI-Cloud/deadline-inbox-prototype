@@ -40,6 +40,59 @@ const DOCUMENT_URLS = {
   "study-group-notes": null,
 };
 
+// Only these tasks get a "+ Add Workspace" button (explicit allowlist, no inference).
+// Add a taskKey here to make another group/collaborative project eligible.
+const WORKSPACE_ELIGIBLE = ["pm-final-group-project"];
+
+// Simulated "Create with Notion AI" workspace, keyed by taskKey. Concept only: nothing here calls an
+// AI or Notion. `context` is the project description the "AI" is pretending to read; `pages` are the
+// child documents it "generated". Each page is made of simple sections:
+//   { heading, text }  |  { heading, bullets: [] }  |  { heading, checklist: [] }  |  { heading, table: { columns, rows } }
+// The Default (no AI) workspace never uses any of this; it is just a blank page.
+const WORKSPACE_AI = {
+  "pm-final-group-project": {
+    title: "Group Project Workspace",
+    context: "In this group project, students are required to brainstorm about potential business cases then provide a final proposal.",
+    pages: [
+      {
+        id: "brainstorming",
+        icon: "💡",
+        title: "Brainstorming",
+        purpose: "A shared document where students can brainstorm potential business cases together.",
+        sections: [
+          { heading: "Business case ideas", bullets: ["Idea 1: add a one-line description", "Idea 2: add a one-line description", "Idea 3: add a one-line description"] },
+          { heading: "Questions to ask about each idea", checklist: ["Who is the customer?", "What problem are we solving?", "Why is this worth solving now?", "How would the business make money?"] },
+          { heading: "Team discussion", bullets: ["Member A: add your thoughts...", "Member B: add your thoughts...", "Member C: add your thoughts..."] },
+          { heading: "Shortlist", text: "Pick the strongest idea(s) to carry into the Final Proposal." },
+        ],
+      },
+      {
+        id: "final-proposal",
+        icon: "📝",
+        title: "Final Proposal",
+        purpose: "A document where students can follow the project requirements and rubric and develop the final business proposal for hand-in.",
+        sections: [
+          { heading: "Requirements", checklist: ["Choose a business case from the Brainstorming page", "Write a final proposal for that business case", "Follow the rubric below", "Hand in before the deadline"] },
+          {
+            heading: "Rubric",
+            text: "Draft rubric. Replace it with the official rubric from the assignment.",
+            table: {
+              columns: ["Criteria", "What to show", "Points"],
+              rows: [
+                ["Business case", "A clear, well-chosen business case", "—"],
+                ["Reasoning", "Evidence and logic behind the proposal", "—"],
+                ["Feasibility", "A realistic plan and next steps", "—"],
+                ["Presentation", "Clear, well-organized writing", "—"],
+              ],
+            },
+          },
+          { heading: "Final Proposal", bullets: ["Problem", "Proposed solution", "Business model", "Next steps"] },
+        ],
+      },
+    ],
+  },
+};
+
 const ITEMS = [
   // ---------- Canvas ----------
   {

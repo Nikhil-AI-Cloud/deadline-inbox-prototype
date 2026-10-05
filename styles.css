@@ -245,3 +245,8 @@ a.btn.primary { color: #fff; }
 .ws-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
 .ws-table th, .ws-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 .ws-table th { background: var(--sidebar); font-weight: 600; }
+
+/* Event popup: separate "Task & source" from "Workspace" (only when a workspace section exists) */
+.ev-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.ev-section-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.ev-section .actions { margin-top: 0; }

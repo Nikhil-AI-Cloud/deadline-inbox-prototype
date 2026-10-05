@@ -285,6 +285,7 @@ function renderEventDetail(event) {
   const status = getStatus(event); // "complete" | "partial" | "backlog"
   const multi = event.items.length > 1;
   const documentUrl = DOCUMENT_URLS[event.taskKey];
+  const workspaceEligible = status !== "backlog" && WORKSPACE_ELIGIBLE.includes(event.taskKey);
 
   const when =
     status === "backlog"
@@ -337,17 +338,29 @@ function renderEventDetail(event) {
       <div class="ev-label">Source evidence</div>
       ${evidence}
 
-      <div class="actions">
-        ${docAction}
-        <button class="btn" data-action="toggle-source" aria-expanded="false">View Original Source</button>
-        ${status !== "backlog" && WORKSPACE_ELIGIBLE.includes(event.taskKey) ? `<button class="btn" data-action="add-workspace">${state.workspaces.has(event.taskKey) ? "Open Workspace" : "+ Add Workspace"}</button>${state.workspaces.has(event.taskKey) ? RECREATE_BUTTON : ""}` : ""}
-      </div>
+      <div${workspaceEligible ? ' class="ev-section"' : ""}>
+        ${workspaceEligible ? `<div class="ev-section-label">Task &amp; source</div>` : ""}
+        <div class="actions">
+          ${docAction}
+          <button class="btn" data-action="toggle-source" aria-expanded="false">View Original Source</button>
+        </div>
 
-      <div class="source-panel" id="source-panel" hidden>
-        ${tabs}
-        ${records}
-        <div class="src-note">Simulated view for this prototype. It is not a live link to ${multi ? "these platforms" : event.items[0].source}.</div>
+        <div class="source-panel" id="source-panel" hidden>
+          ${tabs}
+          ${records}
+          <div class="src-note">Simulated view for this prototype. It is not a live link to ${multi ? "these platforms" : event.items[0].source}.</div>
+        </div>
       </div>
+      ${
+        workspaceEligible
+          ? `<div class="ev-section">
+        <div class="ev-section-label">Workspace</div>
+        <div class="actions">
+          <button class="btn" data-action="add-workspace">${state.workspaces.has(event.taskKey) ? "Open Workspace" : "+ Add Workspace"}</button>${state.workspaces.has(event.taskKey) ? RECREATE_BUTTON : ""}
+        </div>
+      </div>`
+          : ""
+      }
     </div>`;
 }
 
